@@ -1,4 +1,4 @@
-from tsr import withdraw
+from tsr import withdraw, grow
 
 
 def test_withdraw():
@@ -66,3 +66,6 @@ def test_withdraw():
     assert result.get("amount") == expected_amount, "emptying not working"
     assert result.get("portfolio") == expected_port, "emptying not working"
 
+
+def test_withdraw():
+    grow()

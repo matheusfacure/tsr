@@ -1,7 +1,13 @@
 from toolz.curried import *
+from typing import Dict
 
 
-def withdraw(r, inflation, weights, portfolio, tax=0.15):
+def withdraw(r: float,
+             inflation: float,
+             weights: Dict[str, float],
+             portfolio: Dict[str, float],
+             tax: float = 0.15):
+
     total = sum(portfolio.values())
     withdraw_amount = total * r * (1 + inflation) / (1 - tax)
 
@@ -20,19 +26,13 @@ def withdraw(r, inflation, weights, portfolio, tax=0.15):
             "portfolio": updated_portfolio}
 
 
-def grow(portfolio, selic, sp500, dolar):
-    return thread_first(
-        portfolio,
-        update_in(keys=["sp500"], func=lambda x: x*(1+sp500)*(1+dolar)),
-        update_in(keys=["selic"], func=lambda x: x*(1+selic))
-    )
+def grow(portfolio: Dict[str, float],
+         asset_growth: Dict[str, float]):
+    return {asset: value*(1+asset_growth.get(asset))
+            for asset, value in portfolio.items()}
 
 
 def rebalance(portfolio, weights, tax=0.15):
-    
-    if any([v>0 for v in weights.values()]):
-        return portfolio
-    
     total = sum(portfolio.values())
     w_diff = {a:(w/total)-weights.get(a) for a, w in portfolio.items()}
     withdraw_from = max(w_diff, key=w_diff.get)
@@ -42,7 +42,7 @@ def rebalance(portfolio, weights, tax=0.15):
     A2 = total - A1
     w1 = weights.get(withdraw_from)
     
-    A1_ = (A1+A2-A1*tx)/((1/w1) - tax)
+    A1_ = (A1+A2-A1*tax)/((1/w1) - tax)
     A2_ = A1_/w1 - A1_
     
     return {withdraw_from: A1_, withdraw_to: A2_}
