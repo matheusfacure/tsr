@@ -32,17 +32,29 @@ def grow(portfolio: Dict[str, float],
             for asset, value in portfolio.items()}
 
 
-def rebalance(portfolio, weights, tax=0.15):
-    total = sum(portfolio.values())
-    w_diff = {a:(w/total)-weights.get(a) for a, w in portfolio.items()}
-    withdraw_from = max(w_diff, key=w_diff.get)
-    withdraw_to = min(w_diff, key=w_diff.get)
-    
-    A1 = portfolio.get(withdraw_from)
-    A2 = total - A1
-    w1 = weights.get(withdraw_from)
-    
-    A1_ = (A1+A2-A1*tax)/((1/w1) - tax)
-    A2_ = A1_/w1 - A1_
-    
-    return {withdraw_from: A1_, withdraw_to: A2_}
+def rebalance(portifolio, weights, tax=0.15):
+    assert len(portifolio) == len(weights)
+    assert np.isclose(sum(weights.values()), 1)
+
+    all_assets = pd.DataFrame(portifolio, index=[0])
+    all_assets_w = pd.DataFrame(weights, index=[0])
+
+    w_diff = all_assets_w - all_assets / sum(portifolio.values())
+
+    A_top = np.concatenate([
+        -np.ones(len(portifolio) - 1).reshape(-1, 1) / all_assets_w.values[0][0],
+        1 / all_assets_w.values[0][1:] * np.identity(len(portifolio) - 1)
+    ], axis=1)
+
+    last_row = np.array([1 / all_assets_w.values[0][0]] + list(np.zeros(len(portifolio) - 1))) - tax * (
+                w_diff.values[0] < 0)
+
+    A = np.concatenate([A_top, last_row.reshape(1, -1)])
+
+    Y = np.array(
+        list(np.zeros(len(portifolio) - 1)) +
+        [all_assets.values[0].sum() - np.sum((w_diff.values[0] < 0) * all_assets.values[0] * tax)]
+    )
+
+    return dict(zip(all_assets.columns, np.linalg.solve(A, Y).round(2)))
+
