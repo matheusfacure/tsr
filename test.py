@@ -1,4 +1,5 @@
-from tsr import withdraw, grow
+from tsr import withdraw, rebalance
+import numpy as np
 
 
 def test_withdraw():
@@ -67,5 +68,29 @@ def test_withdraw():
     assert result.get("portfolio") == expected_port, "emptying not working"
 
 
-def test_withdraw():
-    grow()
+def test_rebalance():
+    def check_rebalance(old_p, new_p, w, tax):
+        amount_withdrawn = sum([
+            old_p.get(asset) - new_p.get(asset)
+            for asset in old_p.keys()
+            if w.get(asset) - old_p.get(asset) / sum(old_p.values()) < 0
+        ])
+
+        tax_payed = (sum(old_p.values()) - sum(new_p.values()))
+
+        assert np.isclose(tax_payed, amount_withdrawn * tax)
+
+        new_w = {asset: np.round(amount / sum(new_p.values()), 5) for asset, amount in new_p.items()}
+        assert new_w == w
+
+    portfolio = {"sp500": 50000, "selic": 10000, "bova": 40000}
+    weights = {"sp500": 0.6, "selic": 0.3, "bova": 0.1}
+    tax = 0.15
+
+    check_rebalance(portfolio, rebalance(portfolio, weights, tax), weights, tax)
+
+    portfolio = {"sp500": 50000, "selic": 10000}
+    weights = {"sp500": 0.6, "selic": 0.4}
+    tax = 0.15
+
+    check_rebalance(portfolio, rebalance(portfolio, weights, tax), weights, tax)

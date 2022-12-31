@@ -1,5 +1,7 @@
 from toolz.curried import *
 from typing import Dict
+import numpy as np
+import pandas as pd
 
 
 def withdraw(r: float,
@@ -32,29 +34,24 @@ def grow(portfolio: Dict[str, float],
             for asset, value in portfolio.items()}
 
 
-def rebalance(portifolio, weights, tax=0.15):
-    assert len(portifolio) == len(weights)
+def rebalance(portfolio: Dict[str, float],
+              weights: Dict[str, float],
+              tax: float = 0.15):
+    assert len(portfolio) == len(weights)
     assert np.isclose(sum(weights.values()), 1)
+    assert portfolio.keys() == weights.keys()
 
-    all_assets = pd.DataFrame(portifolio, index=[0])
-    all_assets_w = pd.DataFrame(weights, index=[0])
+    all_assets_w = pd.DataFrame(weights, index=["weight"])
+    all_assets = pd.DataFrame(portfolio, index=["amount_0"])
 
-    w_diff = all_assets_w - all_assets / sum(portifolio.values())
+    w_diff = (
+            all_assets_w - all_assets.rename(index={"amount_0": "weight"}) / sum(portfolio.values())
+    ).rename(index={"weight": "weight_diff"})
 
-    A_top = np.concatenate([
-        -np.ones(len(portifolio) - 1).reshape(-1, 1) / all_assets_w.values[0][0],
-        1 / all_assets_w.values[0][1:] * np.identity(len(portifolio) - 1)
-    ], axis=1)
+    input_df = pd.concat([all_assets, all_assets_w, w_diff])
 
-    last_row = np.array([1 / all_assets_w.values[0][0]] + list(np.zeros(len(portifolio) - 1))) - tax * (
-                w_diff.values[0] < 0)
+    X = np.diag((1 / input_df.loc["weight"]).values) + (input_df.loc["weight_diff"] < 0).values.T * (-tax)
+    Y = np.ones(len(portfolio)) * input_df.loc["amount_0"].sum() - tax * (
+            input_df.loc["amount_0"] * (input_df.loc["weight_diff"] < 0)).sum()
 
-    A = np.concatenate([A_top, last_row.reshape(1, -1)])
-
-    Y = np.array(
-        list(np.zeros(len(portifolio) - 1)) +
-        [all_assets.values[0].sum() - np.sum((w_diff.values[0] < 0) * all_assets.values[0] * tax)]
-    )
-
-    return dict(zip(all_assets.columns, np.linalg.solve(A, Y).round(2)))
-
+    return dict(zip(input_df.columns, np.linalg.solve(X, Y).round(2)))
